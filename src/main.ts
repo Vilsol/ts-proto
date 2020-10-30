@@ -51,6 +51,7 @@ import {
   generateGrpcMethodDesc,
   generateGrpcServiceDesc,
 } from './generate-grpc-web';
+import { generateMetaTypings, generateServiceMetaTypings, getMetaInterfaces } from './generate-meta';
 
 export enum LongOption {
   NUMBER = 'number',
@@ -87,6 +88,7 @@ export type Options = {
   nestJs: boolean;
   env: EnvOption;
   addUnrecognizedEnum: boolean;
+  outputMetaTypings: boolean;
 };
 
 export function generateFile(typeMap: TypeMap, fileDesc: FileDescriptorProto, parameter: string): FileSpec {
@@ -226,6 +228,23 @@ export function generateFile(typeMap: TypeMap, fileDesc: FileDescriptorProto, pa
   );
   if (hasAnyTimestamps && (options.outputJsonMethods || options.outputEncodeMethods)) {
     file = addTimestampMethods(file, options);
+  }
+
+  if (options.outputMetaTypings) {
+    file = getMetaInterfaces().reduce((f, i) => f.addInterface(i), file);
+
+    visit(
+      fileDesc,
+      sourceInfo,
+      (fullName, message, sInfo) => {
+        file = file.addProperty(generateMetaTypings(typeMap, fullName, message, sInfo, options));
+      },
+      options
+    );
+
+    visitServices(fileDesc, sourceInfo, (serviceDesc, sInfo) => {
+      file = file.addProperty(generateServiceMetaTypings(typeMap, fileDesc, sInfo, serviceDesc, options));
+    });
   }
 
   const initialOutput = file.toString();
